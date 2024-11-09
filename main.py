@@ -10,9 +10,18 @@ import image_processor
 class ImageEditor:
     processor = image_processor.ImageProcessor()
 
-    def __init__(self, title: str, geometry: list):
+    def __init__(self, title: str, geometry: list = []):
+        """App builds itself on __init__ call, so no need to app.build()"""
+
+        self.min_width = 1280
+        self.min_height = 720
+
         self._title = title
         self._geometry = geometry
+
+        if self._geometry == []:
+            self._geometry.append(self.min_width)
+            self._geometry.append(self.min_height)
 
         try:
             if os.path.exists("img_path.txt"):
@@ -31,7 +40,7 @@ class ImageEditor:
         except Exception as e:
             messagebox.showerror("An error occurred. Details: ", str(e))
 
-        # Fuck HSL am I right?
+        # TODO: Fuck HSL am I right?
         if self.img.mode != "RGB":
             self.img = self.img.convert("RGB")
 
@@ -99,28 +108,23 @@ class ImageEditor:
     def build(self):
         root = ctk.CTk()
         root.title(self._title)
-        root.geometry(f"{self._geometry[0]}x{self._geometry[1]}")
-        root.minsize(1280, 720)
+        root.minsize(self.min_width, self.min_height)
 
         image_frame = ctk.CTkFrame(root)
-        image_frame.pack(pady=10, fill="both", expand=True)
+
+        # I really hate how adding widgets is implemented in CTk.
+        # Is there a way to build my own?
 
         # Open by defalt the last one, add "Open new image" button
         original_frame = ctk.CTkFrame(image_frame)
-        original_frame.pack(side="left", padx=10, fill="both", expand=True)
-
         original_image = ctk.CTkImage(self.img, size=(400, 400))
         original_image_label = ctk.CTkLabel(
             original_frame, text="Original Image:", anchor="n"
         )
 
-        original_image_label.pack()
-
         self.original_image_display = ctk.CTkLabel(
             original_frame, text="", image=original_image
         )
-
-        self.original_image_display.pack()
 
         open_new_image_button = ctk.CTkButton(
             original_frame,
@@ -128,25 +132,17 @@ class ImageEditor:
             command=lambda: self.update_images(self.processor.open_image()),
         )
 
-        open_new_image_button.pack()
-
         enhanced_frame = ctk.CTkFrame(image_frame)
-        enhanced_frame.pack(side="left", padx=10, fill="both", expand=True)
-
         self.enhanced_image = ctk.CTkImage(self.img, size=(400, 400))
         enhanced_image_label = ctk.CTkLabel(
             enhanced_frame, text="Enhanced Image:", anchor="n"
         )
 
-        enhanced_image_label.pack()
-
         self.enhanced_image_display = ctk.CTkLabel(
             enhanced_frame, text="", image=self.enhanced_image
         )
 
-        self.enhanced_image_display.pack()
-
-        contrast_label = ctk.CTkLabel(enhanced_frame, text="Contrast")
+        contrast_label = ctk.CTkLabel(enhanced_frame, text="Contrast: ")
         contrast_slider = ctk.CTkSlider(
             enhanced_frame,
             from_=int(self.enhancements["contrast"]),
@@ -154,9 +150,7 @@ class ImageEditor:
             command=lambda x: self.change_enhancement("contrast", x),
         )
 
-        contrast_label.pack()
-        contrast_slider.pack()
-
+        brightness_label = ctk.CTkLabel(enhanced_frame, text="Brightness: ")
         brightness_slider = ctk.CTkSlider(
             enhanced_frame,
             from_=int(self.enhancements["brightness"]),
@@ -164,8 +158,7 @@ class ImageEditor:
             command=lambda x: self.change_enhancement("brightness", x),
         )
 
-        brightness_slider.pack()
-
+        sharpness_label = ctk.CTkLabel(enhanced_frame, text="Sharpness: ")
         sharpness_slider = ctk.CTkSlider(
             enhanced_frame,
             from_=int(self.enhancements["sharpness"]),
@@ -173,8 +166,7 @@ class ImageEditor:
             command=lambda x: self.change_enhancement("sharpness", x),
         )
 
-        sharpness_slider.pack()
-
+        saturation_label = ctk.CTkLabel(enhanced_frame, text="Saturation: ")
         saturation_slider = ctk.CTkSlider(
             enhanced_frame,
             from_=int(self.enhancements["saturation"]),
@@ -182,16 +174,42 @@ class ImageEditor:
             command=lambda x: self.change_enhancement("saturation", x),
         )
 
-        saturation_slider.pack()
-
         save_button = ctk.CTkButton(
             enhanced_frame, text="Save image as...", command=self.save_image
         )
 
-        save_button.pack()
+        def pack_widgets():
+            image_frame.pack(pady=10, fill="both", expand=True)
+            original_frame.pack(side="left", padx=10, fill="both", expand=True)
 
+            original_image_label.pack()
+
+            self.original_image_display.pack()
+
+            open_new_image_button.pack()
+
+            enhanced_frame.pack(side="left", padx=10, fill="both", expand=True)
+            enhanced_image_label.pack()
+
+            self.enhanced_image_display.pack()
+
+            contrast_label.pack()
+            contrast_slider.pack()
+
+            brightness_label.pack()
+            brightness_slider.pack()
+
+            sharpness_label.pack()
+            sharpness_slider.pack()
+
+            saturation_label.pack()
+            saturation_slider.pack()
+
+            save_button.pack()
+
+        pack_widgets()
         self.update_displayed_image(self.img)
         root.mainloop()
 
 
-app = ImageEditor(title="Image Editor", geometry=[1280, 720])
+app = ImageEditor(title="Py Image Editor")
