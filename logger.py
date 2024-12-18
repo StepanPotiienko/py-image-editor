@@ -14,6 +14,8 @@ class Logger:
                 "%(message)s"
             ),
         )
+        with open("log.txt", "w") as file:
+            file.write("")
 
     def append_to_log(self, data):
         with open("log.txt", "a") as file:
@@ -21,12 +23,12 @@ class Logger:
 
     def error(self, data):
         logging.error(f"{self.prefix}: {data}")
-        self.append_to_log(data)
+        self.append_to_log(f"{self.prefix}: {data}\n")
 
     def warning(self, data):
         logging.warning(f"{self.prefix}: {data}")
-        self.append_to_log(data)
+        self.append_to_log(f"{self.prefix}: {data}\n")
 
     def info(self, data):
         logging.info(f"{self.prefix}: {data}")
-        self.append_to_log(data)
+        self.append_to_log(f"{self.prefix}: {data}\n")
