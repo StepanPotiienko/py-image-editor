@@ -21,9 +21,12 @@ class Logger:
 
     def error(self, data):
         logging.error(f"{self.prefix}: {data}")
+        self.append_to_log(data)
 
     def warning(self, data):
         logging.warning(f"{self.prefix}: {data}")
+        self.append_to_log(data)
 
     def info(self, data):
         logging.info(f"{self.prefix}: {data}")
+        self.append_to_log(data)

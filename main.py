@@ -4,45 +4,152 @@ import customtkinter as ctk
 from PIL import Image, ImageEnhance
 import tempfile
 
-import image_processor
 from logger import Logger
+from file_processor import FileProcessor
 
 
 class ImageEditor:
-    processor = image_processor.ImageProcessor()
+    processor = FileProcessor()
     logger = Logger()
 
     def __init__(self, title: str, geometry: list = []):
-        self.min_width = 1280
-        self.min_height = 720
+        self._min_width = 1280
+        self._min_height = 720
         self._title = title
-        self._geometry = geometry or [self.min_width, self.min_height]
+        self._geometry = geometry or [self._min_width, self._min_height]
 
-        # Allocate memory.
+        # Initialize the Tkinter root window
+        self.root = ctk.CTk()
+        self.root.title(self._title)
+        self.root.minsize(self._min_width, self._min_height)
+
+        # Allocate memory
         self.img = None
-        self.temp_image_file = None
+        self.last_edited_file = os.path.join(
+            tempfile.gettempdir(), "last_edited_image.png"
+        )
         self.enhanced_image = None
 
         try:
-            # TODO: #3 Saving data to temporary file does not work as intended.
-            self.temp_image_file = tempfile.NamedTemporaryFile(
-                prefix="py_image_editor_", delete=False
-            )
+            self.logger.info("Searching for last edited picture...")
 
+            # Check if the file exists and has content
             if (
-                os.path.exists(self.temp_image_file.name)
-                and os.path.getsize(self.temp_image_file.name) > 0
+                os.path.exists(self.last_edited_file)
+                and os.path.getsize(self.last_edited_file) > 0
             ):
-                self.img = Image.open(self.temp_image_file.name)
+                self.img = Image.open(self.last_edited_file)
+                self.logger.info(
+                    f"Opened last edited image from {self.last_edited_file}."
+                )
             else:
                 self.logger.info("No image found in temporary storage.")
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load image: {str(e)}")
-            self.logger.error(f"Failed to load image: {str(e)}.")
-
-            # Clear memory.
+            self.logger.error(f"Failed to load image: {str(e)}")
             self.img = None
+
+        self.original_image = self.img.copy() if self.img else None
+        self.preview_image = (
+            self.img.copy().resize((400, int(400 * self.img.height / self.img.width)))
+            if self.img and self.img.width > self.img.height
+            else (
+                self.img.copy().resize(
+                    (int(400 * self.img.width / self.img.height), 400)
+                )
+                if self.img
+                else None
+            )
+        )
+
+        self.enhancements = {
+            "contrast": 1,
+            "brightness": 1,
+            "sharpness": 1,
+            "saturation": 1,
+        }
+
+        self.update_timer = None
+        self.build()
+
+    def open_new_image(self):
+        try:
+            image_path = self.processor.open_image()
+            if image_path:
+                self.img = Image.open(image_path)
+                self.logger.info("Opened new image.")
+
+                # Save the image to the last edited file path
+                self.img.save(self.last_edited_file, format="PNG")
+
+                self.original_image = self.img.copy()
+                self.preview_image = self.img.copy()
+                self.fit_preview(self.preview_image)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open image: {str(e)}")
+            self.logger.error(f"Failed to open image: {str(e)}")
+
+    def handle_save_image(self):
+        try:
+            save_path = (
+                self.processor.save_image()
+            )  # Assuming `save_image` asks user for a save location
+            if save_path and self.enhanced_image:
+                enhanced_full_image = self.apply_enhancements(self.original_image)
+                enhanced_full_image.save(save_path, format="PNG")
+                self.logger.info(f"Image saved to {save_path}.")
+
+                # Update the last edited file with the saved image
+                enhanced_full_image.save(self.last_edited_file, format="PNG")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save image: {str(e)}")
+            self.logger.error(f"Failed to save image: {str(e)}")
+
+        self.original_image = self.img.copy() if self.img else None
+        self.preview_image = self.img.copy().resize((400, 400)) if self.img else None
+        self.enhancements = {
+            "contrast": 1,
+            "brightness": 1,
+            "sharpness": 1,
+            "saturation": 1,
+        }
+
+        self.update_timer = None
+        self.build()
+
+    def open_new_image(self):
+        try:
+            image_path = self.processor.open_image()
+            if image_path:
+                self.img = Image.open(image_path)
+                self.logger.info("Opened new image.")
+
+                # Save the image to the last edited file path
+                self.img.save(self.last_edited_file, format="PNG")
+
+                self.original_image = self.img.copy()
+                self.preview_image = self.img.copy()
+                self.fit_preview(self.preview_image)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open image: {str(e)}")
+            self.logger.error(f"Failed to open image: {str(e)}")
+
+    def handle_save_image(self):
+        try:
+            save_path = (
+                self.processor.save_image()
+            )  # Assuming `save_image` asks user for a save location
+            if save_path and self.enhanced_image:
+                enhanced_full_image = self.apply_enhancements(self.original_image)
+                enhanced_full_image.save(save_path, format="PNG")
+                self.logger.info(f"Image saved to {save_path}.")
+
+                # Update the last edited file with the saved image
+                enhanced_full_image.save(self.last_edited_file, format="PNG")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save image: {str(e)}")
+            self.logger.error(f"Failed to save image: {str(e)}")
 
         self.original_image = self.img.copy() if self.img else None
         self.preview_image = self.img.copy().resize((400, 400)) if self.img else None
@@ -83,22 +190,24 @@ class ImageEditor:
             self.fit_preview(enhanced_preview)
 
     def fit_preview(self, img):
-        if img:
-            window_width = self.root.winfo_width() or self.min_width
-            window_height = self.root.winfo_height() or self.min_height
+        self.root.after(100, lambda: self.fit_preview(self.preview_image))
 
-            target_width = window_width // 2
-            target_height = window_height // 2
+        if img:
+            image_frame_width = self.root.winfo_width() // 2
+            image_frame_height = self.root.winfo_height()
+
+            image_frame_width = max(image_frame_width, 400)
+            image_frame_height = max(image_frame_height, 400)
 
             img_ratio = img.width / img.height
-            window_ratio = target_width / target_height
+            frame_ratio = image_frame_width / image_frame_height
 
-            if img_ratio > window_ratio:
-                new_width = target_width
-                new_height = int(target_width / img_ratio)
+            if img_ratio > frame_ratio:
+                new_width = image_frame_width
+                new_height = int(new_width / img_ratio)
             else:
-                new_height = target_height
-                new_width = int(target_height * img_ratio)
+                new_height = image_frame_height
+                new_width = int(new_height * img_ratio)
 
             resized_image = img.resize(
                 (new_width, new_height), Image.Resampling.LANCZOS
@@ -113,8 +222,9 @@ class ImageEditor:
             image_path = self.processor.open_image()
             if image_path:
                 self.img = Image.open(image_path)
+                self.logger.info("Opened new image.")
 
-                self.img.save(self.temp_image_file.name, format="PNG")
+                self.img.save(self.last_edited_file, format="PNG")
 
                 self.original_image = self.img.copy()
                 self.preview_image = self.img.copy()
@@ -124,15 +234,12 @@ class ImageEditor:
             self.logger.error(f"Failed to open image: {str(e)}")
 
     def build(self):
-        self.root = ctk.CTk()
-        self.root.title(self._title)
-        self.root.minsize(self.min_width, self.min_height)
-
         self.root.grid_columnconfigure(0, weight=3)
         self.root.grid_columnconfigure(1, weight=1)
         self.root.grid_rowconfigure(0, weight=1)
         self.logger.info("Finished building root.")
 
+        # Create frames for image and controls
         image_frame = ctk.CTkFrame(self.root)
         self.controls_frame = ctk.CTkFrame(self.root, fg_color="transparent")
 
@@ -143,6 +250,7 @@ class ImageEditor:
         self.controls_frame.grid_rowconfigure(tuple(range(10)), weight=1)
         self.controls_frame.grid_columnconfigure(1, weight=1)
 
+        # Create a label to display the enhanced image
         self.enhanced_image_display = ctk.CTkLabel(
             image_frame,
             text="No Image Loaded" if not self.img else "",
@@ -150,6 +258,7 @@ class ImageEditor:
         )
         self.enhanced_image_display.pack(expand=True, fill="both")
 
+        # Add buttons and sliders
         open_new_image_button = ctk.CTkButton(
             self.controls_frame,
             text="Open new image...",
@@ -158,7 +267,7 @@ class ImageEditor:
         save_button = ctk.CTkButton(
             self.controls_frame,
             text="Save image as...",
-            command=lambda: self.handle_save_image(),
+            command=self.handle_save_image,
         )
 
         sliders = [
@@ -194,6 +303,7 @@ class ImageEditor:
         save_button.grid(row=len(sliders) + 1, column=0, columnspan=2, pady=0)
         self.logger.info("Finished building widgets.")
 
+        # Add key bindings
         self.root.bind("<Up>", lambda e: self.adjust_enhancement("brightness", 5))
         self.root.bind("<Down>", lambda e: self.adjust_enhancement("brightness", -5))
         self.root.bind("<Right>", lambda e: self.adjust_enhancement("contrast", 5))
@@ -204,6 +314,11 @@ class ImageEditor:
         self.root.bind("a", lambda e: self.adjust_enhancement("saturation", -5))
 
         self.logger.info("Finished adding key binds.")
+
+        # Display the last edited image if available
+        if self.preview_image:
+            self.fit_preview(self.preview_image)
+
         self.root.mainloop()
 
     def adjust_enhancement(self, enhancement, step):
@@ -216,4 +331,5 @@ class ImageEditor:
         self.update_preview()
 
 
-app = ImageEditor(title="Py Image Editor")
+if __name__ == "__main__":
+    app = ImageEditor(title="Py Image Editor")
