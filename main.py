@@ -1,9 +1,9 @@
-import os.path
-from tkinter import messagebox
-
+import os
+from tkinter import messagebox, DoubleVar
 import customtkinter as ctk
 from PIL import Image, ImageEnhance
-
+import tempfile
+import logging
 import image_processor
 
 
@@ -11,205 +11,198 @@ class ImageEditor:
     processor = image_processor.ImageProcessor()
 
     def __init__(self, title: str, geometry: list = []):
-        """App builds itself on __init__ call, so no need to app.build()"""
-
         self.min_width = 1280
         self.min_height = 720
-
         self._title = title
-        self._geometry = geometry
+        self._geometry = geometry or [self.min_width, self.min_height]
 
-        if self._geometry == []:
-            self._geometry.append(self.min_width)
-            self._geometry.append(self.min_height)
+        self.img = None
+        self.temp_image_file = None
+        self.enhanced_image = None
 
         try:
-            if os.path.exists("img_path.txt"):
-                with open("img_path.txt", "r") as file:
-                    image_path = file.readline()
+            self.temp_image_file = tempfile.NamedTemporaryFile(
+                prefix="py_image_editor_", suffix=".png", delete=False
+            )
 
+            if (
+                os.path.exists(self.temp_image_file.name)
+                and os.path.getsize(self.temp_image_file.name) > 0
+            ):
+                self.img = Image.open(self.temp_image_file.name)
             else:
-                image_path = self.processor.open_image()
-
-            if image_path is not None:
-                self.img = Image.open(image_path)
-
-                with open("img_path.txt", "w") as file:
-                    file.write(image_path)
+                logging.info("No image found in temporary storage.")
 
         except Exception as e:
-            messagebox.showerror("An error occurred. Details: ", str(e))
+            messagebox.showerror("Error", f"Failed to load image: {str(e)}")
+            self.img = None
 
-        # TODO: Fuck HSL am I right?
-        if self.img.mode != "RGB":
-            self.img = self.img.convert("RGB")
-
-        self.original_image = self.img.copy()
+        self.original_image = self.img.copy() if self.img else None
+        self.preview_image = self.img.copy().resize((400, 400)) if self.img else None
         self.enhancements = {
-            "contrast": 0.5,
-            "brightness": 0.5,
-            "sharpness": 0.5,
-            "saturation": 0.5,
+            "contrast": 1,
+            "brightness": 1,
+            "sharpness": 1,
+            "saturation": 1,
         }
 
+        self.update_timer = None
         self.build()
 
-    def apply_enhancements(self):
-        enhanced_image = self.img.copy()
-
+    def apply_enhancements(self, image):
+        enhanced_image = image.copy()
         for enhancement, value in self.enhancements.items():
             if enhancement == "contrast":
                 enhanced_image = ImageEnhance.Contrast(enhanced_image).enhance(value)
-
             elif enhancement == "brightness":
                 enhanced_image = ImageEnhance.Brightness(enhanced_image).enhance(value)
-
             elif enhancement == "sharpness":
                 enhanced_image = ImageEnhance.Sharpness(enhanced_image).enhance(value)
-
             elif enhancement == "saturation":
                 enhanced_image = ImageEnhance.Color(enhanced_image).enhance(value)
-
         return enhanced_image
 
     def change_enhancement(self, enhancement: str, value: float):
-        self.enhancements[enhancement] = float(value) / 100
-        enhanced_image = self.apply_enhancements()
-        self.update_displayed_image(enhanced_image)
+        self.enhancements[enhancement] = round(float(value) / 100, 2)
+
+        if self.update_timer:
+            self.root.after_cancel(self.update_timer)
+
+        self.update_timer = self.root.after(100, self.update_preview)
+
+    def update_preview(self):
+        if self.preview_image:
+            enhanced_preview = self.apply_enhancements(self.preview_image)
+            self.update_displayed_image(enhanced_preview)
 
     def update_displayed_image(self, img):
-        self.enhanced_image = ctk.CTkImage(img, size=(400, 400))
-        self.enhanced_image_display.configure(image=self.enhanced_image)
+        if img:
+            window_width = self.root.winfo_width() or self.min_width
+            window_height = self.root.winfo_height() or self.min_height
 
-    def update_images(self, img):
-        self.original_image = ctk.CTkImage(Image.open(img), size=(400, 400))
-        self.original_image_display.configure(image=self.original_image)
+            target_width = window_width // 2
+            target_height = window_height // 2
 
-        self.enhanced_image = ctk.CTkImage(Image.open(img), size=(400, 400))
-        self.enhanced_image_display.configure(image=self.enhanced_image)
+            img_ratio = img.width / img.height
+            window_ratio = target_width / target_height
 
-    def save_image(self):
-        enhanced_image = self.apply_enhancements()
-        file_path = ctk.filedialog.asksaveasfilename(
-            defaultextension=".jpg",
-            filetypes=[
-                ("JPEG files", "*.jpg"),
-                ("PNG files", "*.png"),
-                ("All files", "*.*"),
-            ],
-        )
+            if img_ratio > window_ratio:
+                new_width = target_width
+                new_height = int(target_width / img_ratio)
+            else:
+                new_height = target_height
+                new_width = int(target_height * img_ratio)
 
-        if file_path:
-            with open("img_path.txt", "w") as file:
-                file.write(file_path)
+            resized_image = img.resize(
+                (new_width, new_height), Image.Resampling.LANCZOS
+            )
+            self.enhanced_image = ctk.CTkImage(
+                resized_image, size=(new_width, new_height)
+            )
+            self.enhanced_image_display.configure(image=self.enhanced_image, text="")
 
-            enhanced_image.save(file_path)
+    def open_new_image(self):
+        try:
+            image_path = self.processor.open_image()
+            if image_path:
+                self.img = Image.open(image_path)
+
+                self.img.save(self.temp_image_file.name, format="PNG")
+
+                self.original_image = self.img.copy()
+                self.preview_image = self.img.copy()
+                self.update_displayed_image(self.preview_image)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open image: {str(e)}")
 
     def build(self):
-        root = ctk.CTk()
-        root.title(self._title)
-        root.minsize(self.min_width, self.min_height)
+        self.root = ctk.CTk()
+        self.root.title(self._title)
+        self.root.minsize(self.min_width, self.min_height)
 
-        image_frame = ctk.CTkFrame(root)
+        self.root.grid_columnconfigure(0, weight=3)
+        self.root.grid_columnconfigure(1, weight=1)
+        self.root.grid_rowconfigure(0, weight=1)
 
-        # I really hate how adding widgets is implemented in CTk.
-        # Is there a way to build my own?
+        image_frame = ctk.CTkFrame(self.root)
+        self.controls_frame = ctk.CTkFrame(self.root, fg_color="transparent")
 
-        # Open by defalt the last one, add "Open new image" button
-        original_frame = ctk.CTkFrame(image_frame)
-        original_image = ctk.CTkImage(self.img, size=(400, 400))
-        original_image_label = ctk.CTkLabel(
-            original_frame, text="Original Image:", anchor="n"
-        )
+        image_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        self.controls_frame.grid(row=0, column=1, sticky="nsew", padx=0, pady=0)
 
-        self.original_image_display = ctk.CTkLabel(
-            original_frame, text="", image=original_image
-        )
-
-        open_new_image_button = ctk.CTkButton(
-            original_frame,
-            text="Open new image...",
-            command=lambda: self.update_images(self.processor.open_image()),
-        )
-
-        enhanced_frame = ctk.CTkFrame(image_frame)
-        self.enhanced_image = ctk.CTkImage(self.img, size=(400, 400))
-        enhanced_image_label = ctk.CTkLabel(
-            enhanced_frame, text="Enhanced Image:", anchor="n"
-        )
+        self.controls_frame.grid_propagate(False)
+        self.controls_frame.grid_rowconfigure(tuple(range(10)), weight=1)
+        self.controls_frame.grid_columnconfigure(1, weight=1)
 
         self.enhanced_image_display = ctk.CTkLabel(
-            enhanced_frame, text="", image=self.enhanced_image
+            image_frame,
+            text="No Image Loaded" if not self.img else "",
+            image=self.enhanced_image if self.enhanced_image else None,
         )
+        self.enhanced_image_display.pack(expand=True, fill="both")
 
-        contrast_label = ctk.CTkLabel(enhanced_frame, text="Contrast: ")
-        contrast_slider = ctk.CTkSlider(
-            enhanced_frame,
-            from_=int(self.enhancements["contrast"]),
-            to=100,
-            command=lambda x: self.change_enhancement("contrast", x),
+        open_new_image_button = ctk.CTkButton(
+            self.controls_frame,
+            text="Open new image...",
+            command=self.open_new_image,
         )
-
-        brightness_label = ctk.CTkLabel(enhanced_frame, text="Brightness: ")
-        brightness_slider = ctk.CTkSlider(
-            enhanced_frame,
-            from_=int(self.enhancements["brightness"]),
-            to=100,
-            command=lambda x: self.change_enhancement("brightness", x),
-        )
-
-        sharpness_label = ctk.CTkLabel(enhanced_frame, text="Sharpness: ")
-        sharpness_slider = ctk.CTkSlider(
-            enhanced_frame,
-            from_=int(self.enhancements["sharpness"]),
-            to=100,
-            command=lambda x: self.change_enhancement("sharpness", x),
-        )
-
-        saturation_label = ctk.CTkLabel(enhanced_frame, text="Saturation: ")
-        saturation_slider = ctk.CTkSlider(
-            enhanced_frame,
-            from_=int(self.enhancements["saturation"]),
-            to=100,
-            command=lambda x: self.change_enhancement("saturation", x),
-        )
-
         save_button = ctk.CTkButton(
-            enhanced_frame, text="Save image as...", command=self.save_image
+            self.controls_frame,
+            text="Save image as...",
+            command=lambda: self.handle_save_image(),
         )
 
-        def pack_widgets():
-            image_frame.pack(pady=10, fill="both", expand=True)
-            original_frame.pack(side="left", padx=10, fill="both", expand=True)
+        sliders = [
+            ("Contrast", "contrast"),
+            ("Brightness", "brightness"),
+            ("Sharpness", "sharpness"),
+            ("Saturation", "saturation"),
+        ]
 
-            original_image_label.pack()
+        self.slider_vars = {
+            name: DoubleVar(value=self.enhancements[enh] * 100) for name, enh in sliders
+        }
+        self.sliders = {}
 
-            self.original_image_display.pack()
+        for idx, (label_text, enhancement) in enumerate(sliders):
+            ctk.CTkLabel(self.controls_frame, text=f"{label_text}:").grid(
+                row=idx, column=0, padx=0, pady=0
+            )
 
-            open_new_image_button.pack()
+            slider = ctk.CTkSlider(
+                self.controls_frame,
+                from_=0,
+                to=100,
+                variable=self.slider_vars[label_text],
+                command=lambda value, enh=enhancement: self.change_enhancement(
+                    enh, value
+                ),
+            )
+            slider.grid(row=idx, column=1, padx=0, pady=0, sticky="ew")
+            self.sliders[enhancement] = slider
 
-            enhanced_frame.pack(side="left", padx=10, fill="both", expand=True)
-            enhanced_image_label.pack()
+        open_new_image_button.grid(row=len(sliders), column=0, columnspan=2, pady=0)
+        save_button.grid(row=len(sliders) + 1, column=0, columnspan=2, pady=0)
 
-            self.enhanced_image_display.pack()
+        self.root.bind("<Up>", lambda e: self.adjust_enhancement("brightness", 5))
+        self.root.bind("<Down>", lambda e: self.adjust_enhancement("brightness", -5))
+        self.root.bind("<Right>", lambda e: self.adjust_enhancement("contrast", 5))
+        self.root.bind("<Left>", lambda e: self.adjust_enhancement("contrast", -5))
+        self.root.bind("w", lambda e: self.adjust_enhancement("sharpness", 5))
+        self.root.bind("s", lambda e: self.adjust_enhancement("sharpness", -5))
+        self.root.bind("d", lambda e: self.adjust_enhancement("saturation", 5))
+        self.root.bind("a", lambda e: self.adjust_enhancement("saturation", -5))
 
-            contrast_label.pack()
-            contrast_slider.pack()
+        self.root.mainloop()
 
-            brightness_label.pack()
-            brightness_slider.pack()
+    def adjust_enhancement(self, enhancement, step):
+        new_value = self.enhancements[enhancement] * 100 + step
+        new_value = max(0, min(new_value, 100))
 
-            sharpness_label.pack()
-            sharpness_slider.pack()
+        self.enhancements[enhancement] = new_value / 100
+        self.slider_vars[enhancement.capitalize()].set(new_value)
 
-            saturation_label.pack()
-            saturation_slider.pack()
-
-            save_button.pack()
-
-        pack_widgets()
-        self.update_displayed_image(self.img)
-        root.mainloop()
+        self.update_preview()
 
 
 app = ImageEditor(title="Py Image Editor")

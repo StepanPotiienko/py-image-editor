@@ -9,6 +9,7 @@
 * Add auto image resize for large images.
 * Write last file path to another directory.
 * Add an option to remove background.
+* Rename ImageProcessor to FileProcessor.
 
 ## DONE
 
