@@ -3,6 +3,10 @@ from tkinter import messagebox, DoubleVar
 import customtkinter as ctk
 from PIL import Image, ImageEnhance
 import tempfile
+import dotenv
+
+# TODO: #6 Add background eraser tool when they update it to Python 3.13 >:(
+# import rembg
 
 from logger import Logger
 from file_processor import FileProcessor
@@ -20,7 +24,19 @@ class ImageEditor:
 
         self.root = ctk.CTk()
         self.root.title(self._title)
+
+        dotenv.load_dotenv()
+        icon_path = os.environ.get("ICON_PATH")
+
+        if os.path.exists(icon_path):
+            self.root.iconbitmap(icon_path)
+            self.logger.info("Set application's icon.")
+        else:
+            self.logger.error(f"Icon file not found at: {icon_path}")
+
         self.root.minsize(self._min_width, self._min_height)
+
+        self.logger.info("Building process initalizing...")
 
         self.img = None
         self.last_edited_file = os.path.join(
@@ -316,4 +332,5 @@ class ImageEditor:
 
 
 if __name__ == "__main__":
-    app = ImageEditor(title="Py Image Editor")
+    app_title: str = "CatCut"
+    app = ImageEditor(title=app_title)
