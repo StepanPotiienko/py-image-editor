@@ -18,12 +18,10 @@ class ImageEditor:
         self._title = title
         self._geometry = geometry or [self._min_width, self._min_height]
 
-        # Initialize the Tkinter root window
         self.root = ctk.CTk()
         self.root.title(self._title)
         self.root.minsize(self._min_width, self._min_height)
 
-        # Allocate memory
         self.img = None
         self.last_edited_file = os.path.join(
             tempfile.gettempdir(), "last_edited_image.png"
@@ -33,7 +31,6 @@ class ImageEditor:
         try:
             self.logger.info("Searching for last edited picture...")
 
-            # Check if the file exists and has content
             if (
                 os.path.exists(self.last_edited_file)
                 and os.path.getsize(self.last_edited_file) > 0
@@ -80,7 +77,6 @@ class ImageEditor:
                 self.img = Image.open(image_path)
                 self.logger.info("Opened new image.")
 
-                # Save the image to the last edited file path
                 self.img.save(self.last_edited_file, format="PNG")
 
                 self.original_image = self.img.copy()
@@ -92,15 +88,12 @@ class ImageEditor:
 
     def handle_save_image(self):
         try:
-            save_path = (
-                self.processor.save_image()
-            )  # Assuming `save_image` asks user for a save location
+            save_path = self.processor.save_image()
             if save_path and self.enhanced_image:
                 enhanced_full_image = self.apply_enhancements(self.original_image)
                 enhanced_full_image.save(save_path, format="PNG")
                 self.logger.info(f"Image saved to {save_path}.")
 
-                # Update the last edited file with the saved image
                 enhanced_full_image.save(self.last_edited_file, format="PNG")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save image: {str(e)}")
@@ -125,7 +118,6 @@ class ImageEditor:
                 self.img = Image.open(image_path)
                 self.logger.info("Opened new image.")
 
-                # Save the image to the last edited file path
                 self.img.save(self.last_edited_file, format="PNG")
 
                 self.original_image = self.img.copy()
@@ -137,15 +129,12 @@ class ImageEditor:
 
     def handle_save_image(self):
         try:
-            save_path = (
-                self.processor.save_image()
-            )  # Assuming `save_image` asks user for a save location
+            save_path = self.processor.save_image()
             if save_path and self.enhanced_image:
                 enhanced_full_image = self.apply_enhancements(self.original_image)
                 enhanced_full_image.save(save_path, format="PNG")
                 self.logger.info(f"Image saved to {save_path}.")
 
-                # Update the last edited file with the saved image
                 enhanced_full_image.save(self.last_edited_file, format="PNG")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save image: {str(e)}")
@@ -239,7 +228,6 @@ class ImageEditor:
         self.root.grid_rowconfigure(0, weight=1)
         self.logger.info("Finished building root.")
 
-        # Create frames for image and controls
         image_frame = ctk.CTkFrame(self.root)
         self.controls_frame = ctk.CTkFrame(self.root, fg_color="transparent")
 
@@ -250,7 +238,6 @@ class ImageEditor:
         self.controls_frame.grid_rowconfigure(tuple(range(10)), weight=1)
         self.controls_frame.grid_columnconfigure(1, weight=1)
 
-        # Create a label to display the enhanced image
         self.enhanced_image_display = ctk.CTkLabel(
             image_frame,
             text="No Image Loaded" if not self.img else "",
@@ -258,7 +245,6 @@ class ImageEditor:
         )
         self.enhanced_image_display.pack(expand=True, fill="both")
 
-        # Add buttons and sliders
         open_new_image_button = ctk.CTkButton(
             self.controls_frame,
             text="Open new image...",
@@ -303,7 +289,6 @@ class ImageEditor:
         save_button.grid(row=len(sliders) + 1, column=0, columnspan=2, pady=0)
         self.logger.info("Finished building widgets.")
 
-        # Add key bindings
         self.root.bind("<Up>", lambda e: self.adjust_enhancement("brightness", 5))
         self.root.bind("<Down>", lambda e: self.adjust_enhancement("brightness", -5))
         self.root.bind("<Right>", lambda e: self.adjust_enhancement("contrast", 5))
@@ -315,7 +300,6 @@ class ImageEditor:
 
         self.logger.info("Finished adding key binds.")
 
-        # Display the last edited image if available
         if self.preview_image:
             self.fit_preview(self.preview_image)
 
