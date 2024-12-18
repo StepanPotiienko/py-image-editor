@@ -2,7 +2,7 @@ import customtkinter as ctk
 from PIL import Image
 
 
-class ImageProcessor:
+class FileProcessor:
     def open_image(self):
         file_path = ctk.filedialog.askopenfilename(
             defaultextension=".jpg",
