@@ -3,12 +3,14 @@ from tkinter import messagebox, DoubleVar
 import customtkinter as ctk
 from PIL import Image, ImageEnhance
 import tempfile
-import logging
+
 import image_processor
+from logger import Logger
 
 
 class ImageEditor:
     processor = image_processor.ImageProcessor()
+    logger = Logger()
 
     def __init__(self, title: str, geometry: list = []):
         self.min_width = 1280
@@ -16,13 +18,15 @@ class ImageEditor:
         self._title = title
         self._geometry = geometry or [self.min_width, self.min_height]
 
+        # Allocate memory.
         self.img = None
         self.temp_image_file = None
         self.enhanced_image = None
 
         try:
+            # TODO: #3 Saving data to temporary file does not work as intended.
             self.temp_image_file = tempfile.NamedTemporaryFile(
-                prefix="py_image_editor_", suffix=".png", delete=False
+                prefix="py_image_editor_", delete=False
             )
 
             if (
@@ -31,10 +35,13 @@ class ImageEditor:
             ):
                 self.img = Image.open(self.temp_image_file.name)
             else:
-                logging.info("No image found in temporary storage.")
+                self.logger.info("No image found in temporary storage.")
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load image: {str(e)}")
+            self.logger.error(f"Failed to load image: {str(e)}.")
+
+            # Clear memory.
             self.img = None
 
         self.original_image = self.img.copy() if self.img else None
@@ -73,9 +80,9 @@ class ImageEditor:
     def update_preview(self):
         if self.preview_image:
             enhanced_preview = self.apply_enhancements(self.preview_image)
-            self.update_displayed_image(enhanced_preview)
+            self.fit_preview(enhanced_preview)
 
-    def update_displayed_image(self, img):
+    def fit_preview(self, img):
         if img:
             window_width = self.root.winfo_width() or self.min_width
             window_height = self.root.winfo_height() or self.min_height
@@ -111,9 +118,10 @@ class ImageEditor:
 
                 self.original_image = self.img.copy()
                 self.preview_image = self.img.copy()
-                self.update_displayed_image(self.preview_image)
+                self.fit_preview(self.preview_image)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open image: {str(e)}")
+            self.logger.error(f"Failed to open image: {str(e)}")
 
     def build(self):
         self.root = ctk.CTk()
@@ -123,6 +131,7 @@ class ImageEditor:
         self.root.grid_columnconfigure(0, weight=3)
         self.root.grid_columnconfigure(1, weight=1)
         self.root.grid_rowconfigure(0, weight=1)
+        self.logger.info("Finished building root.")
 
         image_frame = ctk.CTkFrame(self.root)
         self.controls_frame = ctk.CTkFrame(self.root, fg_color="transparent")
@@ -183,6 +192,7 @@ class ImageEditor:
 
         open_new_image_button.grid(row=len(sliders), column=0, columnspan=2, pady=0)
         save_button.grid(row=len(sliders) + 1, column=0, columnspan=2, pady=0)
+        self.logger.info("Finished building widgets.")
 
         self.root.bind("<Up>", lambda e: self.adjust_enhancement("brightness", 5))
         self.root.bind("<Down>", lambda e: self.adjust_enhancement("brightness", -5))
@@ -193,6 +203,7 @@ class ImageEditor:
         self.root.bind("d", lambda e: self.adjust_enhancement("saturation", 5))
         self.root.bind("a", lambda e: self.adjust_enhancement("saturation", -5))
 
+        self.logger.info("Finished adding key binds.")
         self.root.mainloop()
 
     def adjust_enhancement(self, enhancement, step):
