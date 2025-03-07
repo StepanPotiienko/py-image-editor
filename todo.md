@@ -15,3 +15,4 @@
 - Anti-fool system: if I forget to pass geometry parameter, app shall replace it by itself.
 - Fix performance issues while working with 4k+ images.
 - Add auto image resize for large images.
+- Added some unit tests.

@@ -15,6 +15,8 @@ class FileProcessor:
 
         if file_path:
             return file_path
+        else:
+            return False
 
     def save_image(self, img: Image.Image):
         file_path = ctk.filedialog.asksaveasfilename(
@@ -31,3 +33,6 @@ class FileProcessor:
                 file.write(file_path)
 
                 img.save(file_path)
+                return True
+        else:
+            return False

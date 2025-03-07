@@ -155,6 +155,7 @@ class ImageEditor:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save image: {str(e)}")
             self.logger.error(f"Failed to save image: {str(e)}")
+            return False
 
         self.original_image = self.img.copy() if self.img else None
         self.preview_image = self.img.copy().resize((400, 400)) if self.img else None
@@ -167,6 +168,7 @@ class ImageEditor:
 
         self.update_timer = None
         self.build()
+        return True
 
     def apply_enhancements(self, image):
         enhanced_image = image.copy()
