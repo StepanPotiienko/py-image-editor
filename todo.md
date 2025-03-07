@@ -7,7 +7,7 @@
 - Add spaces between sliders and buttons, original image and button.
 - Write last file path to another directory.
 - Add an option to remove background.
-- Rename ImageProcessor to FileProcessor.
+- Rename ImageProcessr to FileProcessor.
 
 ## DONE
 
